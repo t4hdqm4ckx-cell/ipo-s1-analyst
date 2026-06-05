@@ -33,6 +33,7 @@ class S1Orchestrator:
         self._system_prompt = self._build_system_prompt()
         self.findings: Optional[dict] = None
         self.iterations = 0
+        self.tool_call_log: list[dict] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -52,16 +53,9 @@ class S1Orchestrator:
             if VERBOSE:
                 self._log_response_summary(response)
 
-            # Collect any text the model emits (thinking aloud)
-            text_blocks = [
-                b for b in response.content if b.type == "text"
-            ]
-            tool_blocks = [
-                b for b in response.content if b.type == "tool_use"
-            ]
+            tool_blocks = [b for b in response.content if b.type == "tool_use"]
 
             if response.stop_reason == "end_turn" or not tool_blocks:
-                # Model stopped without completing — force a conclusion
                 if not self.findings:
                     raise AnalysisError(
                         "Agent stopped without calling complete_analysis. "
@@ -71,12 +65,15 @@ class S1Orchestrator:
 
             # Process tool calls
             tool_results = []
-            complete_inputs = None
 
             for block in tool_blocks:
                 result = self.executor.execute(block.name, block.input)
+
+                self.tool_call_log.append(
+                    {"iteration": self.iterations, "tool": block.name, "result_len": len(result)}
+                )
+
                 if result == "__COMPLETE__":
-                    complete_inputs = block.input
                     self.findings = self.executor.get_findings(block.input)
                     tool_results.append(
                         {
@@ -94,15 +91,12 @@ class S1Orchestrator:
                         }
                     )
 
-            # Append assistant turn
             messages.append({"role": "assistant", "content": response.content})
 
             if self.findings:
-                # One final assistant acknowledgement then we exit
                 messages.append({"role": "user", "content": tool_results})
                 break
 
-            # Append tool results and continue
             messages.append({"role": "user", "content": tool_results})
 
         if not self.findings:
@@ -112,6 +106,18 @@ class S1Orchestrator:
             )
 
         return self.findings
+
+    def get_tool_call_summary(self) -> str:
+        """Human-readable summary of all tool calls made during analysis."""
+        if not self.tool_call_log:
+            return "No tool calls recorded."
+        lines = [f"Tool calls made ({len(self.tool_call_log)} total):"]
+        for entry in self.tool_call_log:
+            lines.append(
+                f"  Iter {entry['iteration']:2d}: {entry['tool']:<25} "
+                f"({entry['result_len']:,} chars returned)"
+            )
+        return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # Message building
@@ -135,8 +141,7 @@ class S1Orchestrator:
         return [{"role": "user", "content": intro}]
 
     def _build_system_prompt(self) -> str:
-        base = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
-        return base
+        return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Claude API call with prompt caching
@@ -168,10 +173,13 @@ class S1Orchestrator:
         tool_count = sum(1 for b in response.content if b.type == "tool_use")
         tool_names = [b.name for b in response.content if b.type == "tool_use"]
         usage = response.usage
+        cache_read = getattr(usage, "cache_read_input_tokens", 0)
+        cache_create = getattr(usage, "cache_creation_input_tokens", 0)
         print(
             f"  stop_reason={response.stop_reason} | "
-            f"text_blocks={text_count} | tools={tool_count} {tool_names} | "
-            f"in={usage.input_tokens} out={usage.output_tokens}"
+            f"text={text_count} tools={tool_count} {tool_names} | "
+            f"in={usage.input_tokens} out={usage.output_tokens} | "
+            f"cache_read={cache_read} cache_create={cache_create}"
         )
 
     def close(self):
