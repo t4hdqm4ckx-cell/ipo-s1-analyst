@@ -9,6 +9,14 @@ load_dotenv()
 
 ANTHROPIC_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+
+# Supported models — all have 200k context window, suitable for large S-1 filings
+SUPPORTED_MODELS: list[str] = [
+    "claude-sonnet-4-6",
+    "claude-opus-4-8",
+    "claude-haiku-4-5-20251001",
+]
+
 MAX_TOKENS: int = int(os.environ.get("MAX_TOKENS", "8096"))
 
 EDGAR_CACHE: bool = os.environ.get("EDGAR_CACHE", "true").lower() == "true"
