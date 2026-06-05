@@ -1,11 +1,8 @@
 """Unit tests for the Markdown report assembler."""
 
-from pathlib import Path
 
-import pytest
 
 from agent.reporter import assemble_report, save_report
-
 
 SAMPLE_FINDINGS = {
     "company_name": "Acme Corp",

@@ -1,15 +1,12 @@
 """CLI entry point for the IPO S-1 Analyst Agent."""
 
-import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.rule import Rule
-from rich.text import Text
 
 from agent.fetcher import EDGARFetcher, FilingNotFoundError
 from agent.orchestrator import AnalysisError, S1Orchestrator
@@ -36,19 +33,19 @@ def _validate_env():
 
 @app.command()
 def analyze(
-    company: Optional[str] = typer.Option(
+    company: str | None = typer.Option(
         None,
         "--company",
         "-c",
         help="Company name to search on SEC EDGAR (e.g. 'SpaceX', 'Klarna').",
     ),
-    ticker: Optional[str] = typer.Option(
+    ticker: str | None = typer.Option(
         None,
         "--ticker",
         "-t",
         help="Ticker symbol (e.g. RDDT, ABNB).",
     ),
-    output: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(
         None,
         "--output",
         "-o",

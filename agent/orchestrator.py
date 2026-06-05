@@ -1,7 +1,6 @@
 """Agentic orchestrator — drives the Claude tool-use loop for S-1 analysis."""
 
 from pathlib import Path
-from typing import Optional
 
 import anthropic
 
@@ -31,7 +30,7 @@ class S1Orchestrator:
         self.executor = ToolExecutor(self.parser)
         self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         self._system_prompt = self._build_system_prompt()
-        self.findings: Optional[dict] = None
+        self.findings: dict | None = None
         self.iterations = 0
         self.tool_call_log: list[dict] = []
 

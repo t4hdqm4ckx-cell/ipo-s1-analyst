@@ -4,7 +4,6 @@ before the agentic loop starts. These give Claude a quantitative head-start.
 """
 
 import re
-from typing import Optional
 
 from agent.parser import S1Parser
 

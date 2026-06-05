@@ -1,10 +1,7 @@
 """SEC EDGAR S-1 fetcher — search by ticker or company name, download filing."""
 
-import json
 import re
 import time
-from pathlib import Path
-from typing import Optional
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -244,7 +241,7 @@ class EDGARFetcher:
         return data.get("hits", {}).get("hits", [])
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=8))
-    def _get(self, url: str, params: Optional[dict] = None) -> httpx.Response:
+    def _get(self, url: str, params: dict | None = None) -> httpx.Response:
         time.sleep(REQUEST_DELAY)
         resp = self.client.get(url, params=params)
         resp.raise_for_status()

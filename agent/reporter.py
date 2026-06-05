@@ -1,9 +1,7 @@
 """Markdown report assembler — converts structured findings into a final report."""
 
-import json
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 from config import REPORTS_DIR
 
@@ -24,7 +22,7 @@ def _safe(findings: dict, key: str, default: str = "_Not disclosed_") -> str:
     return str(val).strip()
 
 
-def _swot_section(swot: Optional[dict]) -> str:
+def _swot_section(swot: dict | None) -> str:
     if not swot:
         return "_SWOT not completed._"
     s = swot.get("strengths", [])
@@ -43,7 +41,7 @@ def _swot_section(swot: Optional[dict]) -> str:
     )
 
 
-def _risk_flags_section(flags: Optional[list]) -> str:
+def _risk_flags_section(flags: list | None) -> str:
     if not flags:
         return "_No material risk flags identified beyond standard disclosures._"
     lines = []
