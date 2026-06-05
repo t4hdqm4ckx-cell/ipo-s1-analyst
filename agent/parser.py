@@ -1,7 +1,6 @@
 """S-1 document parser — extracts named sections and financial tables from HTML."""
 
 import re
-from typing import Optional
 
 from bs4 import BeautifulSoup, Tag
 
@@ -234,7 +233,7 @@ class S1Parser:
         """Walk the document, detect section headers, extract content."""
         self._parsed = True
         text_blocks = self._extract_text_blocks()
-        current_section: Optional[str] = None
+        current_section: str | None = None
         current_buf: list[str] = []
 
         for heading, body in text_blocks:
@@ -253,12 +252,12 @@ class S1Parser:
         if VERBOSE:
             print(f"[parser] Sections found: {list(self._sections.keys())}")
 
-    def _extract_text_blocks(self) -> list[tuple[Optional[str], str]]:
+    def _extract_text_blocks(self) -> list[tuple[str | None, str]]:
         """
         Yield (heading_text, body_text) pairs from the soup.
         Heading is None for non-header elements.
         """
-        blocks: list[tuple[Optional[str], str]] = []
+        blocks: list[tuple[str | None, str]] = []
         for el in self.soup.find_all(["h1", "h2", "h3", "h4", "p", "div", "table"]):
             if el.name in ("h1", "h2", "h3", "h4"):
                 text = el.get_text(" ", strip=True)
@@ -284,7 +283,7 @@ class S1Parser:
                     blocks.append((None, text))
         return blocks
 
-    def _match_section(self, heading: str) -> Optional[str]:
+    def _match_section(self, heading: str) -> str | None:
         """Return canonical section name if heading matches a pattern."""
         h = heading.lower().strip()
         for section, patterns in SECTION_PATTERNS.items():

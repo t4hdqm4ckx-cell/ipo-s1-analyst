@@ -4,15 +4,18 @@ These are passed as additional context to Claude rather than replacing its reaso
 """
 
 import re
-from typing import Optional
 
 
-def _parse_millions(text: str) -> Optional[float]:
+def _parse_millions(text: str) -> float | None:
     """Parse a dollar string like '$312.4 million' or '$1.2B' into float millions."""
     text = text.strip().lower()
     text = text.replace(",", "").replace("$", "")
 
-    multipliers = {"billion": 1_000, "b": 1_000, "million": 1, "m": 1, "thousand": 0.001, "k": 0.001}
+    multipliers = {
+        "billion": 1_000, "b": 1_000,
+        "million": 1, "m": 1,
+        "thousand": 0.001, "k": 0.001,
+    }
     for suffix, mult in multipliers.items():
         if text.endswith(suffix):
             try:
@@ -27,39 +30,42 @@ def _parse_millions(text: str) -> Optional[float]:
 
 
 def compute_ev_revenue_multiple(
-    enterprise_value_m: Optional[float],
-    revenue_m: Optional[float],
-) -> Optional[float]:
+    enterprise_value_m: float | None,
+    revenue_m: float | None,
+) -> float | None:
     """Return EV/Revenue multiple, or None if inputs are missing."""
     if enterprise_value_m and revenue_m and revenue_m > 0:
         return round(enterprise_value_m / revenue_m, 1)
     return None
 
 
-def compute_gross_margin(gross_profit_m: Optional[float], revenue_m: Optional[float]) -> Optional[float]:
+def compute_gross_margin(gross_profit_m: float | None, revenue_m: float | None) -> float | None:
     if gross_profit_m is not None and revenue_m and revenue_m > 0:
         return round(gross_profit_m / revenue_m * 100, 1)
     return None
 
 
 def compute_burn_multiple(
-    net_burn_m: Optional[float],
-    net_new_arr_m: Optional[float],
-) -> Optional[float]:
+    net_burn_m: float | None,
+    net_new_arr_m: float | None,
+) -> float | None:
     """Burn multiple = net cash burned / net new ARR. <1 is excellent, >2 is concerning."""
     if net_burn_m and net_new_arr_m and net_new_arr_m > 0:
         return round(abs(net_burn_m) / net_new_arr_m, 2)
     return None
 
 
-def compute_rule_of_40(revenue_growth_pct: Optional[float], ebitda_margin_pct: Optional[float]) -> Optional[float]:
+def compute_rule_of_40(
+    revenue_growth_pct: float | None,
+    ebitda_margin_pct: float | None,
+) -> float | None:
     """Rule of 40 = revenue growth % + EBITDA margin %. >40 is healthy SaaS."""
     if revenue_growth_pct is not None and ebitda_margin_pct is not None:
         return round(revenue_growth_pct + ebitda_margin_pct, 1)
     return None
 
 
-def extract_revenue_growth(mda_text: str) -> Optional[float]:
+def extract_revenue_growth(mda_text: str) -> float | None:
     """Attempt to extract YoY revenue growth rate from MD&A text."""
     patterns = [
         r"revenue\s+(?:increased?|grew?|rose?)\s+(\d+)%",

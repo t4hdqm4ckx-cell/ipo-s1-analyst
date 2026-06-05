@@ -99,6 +99,29 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "search_filing",
+        "description": (
+            "Search the full S-1 text for a specific keyword or phrase and return "
+            "surrounding context snippets. Use this for targeted lookups: 'going concern', "
+            "'material weakness', a specific product name, a customer name, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string",
+                    "description": "Keyword or phrase to search for in the filing.",
+                },
+                "context_chars": {
+                    "type": "integer",
+                    "description": "Characters of context around each match (default 300).",
+                    "default": 300,
+                },
+            },
+            "required": ["keyword"],
+        },
+    },
+    {
         "name": "get_ipo_price_info",
         "description": (
             "Extract IPO pricing information from the S-1: price range, shares offered, "
@@ -228,6 +251,8 @@ class ToolExecutor:
             return self._search_web(inputs["query"], inputs.get("max_results", 5))
         elif name == "list_s1_sections":
             return self._list_sections()
+        elif name == "search_filing":
+            return self._search_filing(inputs["keyword"], inputs.get("context_chars", 300))
         elif name == "get_ipo_price_info":
             return self._get_ipo_price_info()
         elif name == "complete_analysis":
@@ -242,6 +267,15 @@ class ToolExecutor:
     # ------------------------------------------------------------------
     # Implementations
     # ------------------------------------------------------------------
+
+    def _search_filing(self, keyword: str, context_chars: int = 300) -> str:
+        snippets = self.parser.search_text(keyword, context_chars)
+        if not snippets:
+            return f"[Filing Search: '{keyword}']\n\nNo occurrences found."
+        lines = [f"[Filing Search: '{keyword}' — {len(snippets)} occurrence(s)]\n"]
+        for i, snippet in enumerate(snippets, 1):
+            lines.append(f"Match {i}:\n{snippet}\n")
+        return "\n".join(lines)
 
     def _get_section(self, section_name: str) -> str:
         text = self.parser.get_section(section_name)
