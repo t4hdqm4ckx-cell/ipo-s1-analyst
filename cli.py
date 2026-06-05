@@ -152,14 +152,16 @@ def analyze(
             "Running IB-grade due diligence analysis...", total=None
         )
         try:
-            with S1Orchestrator(filing) as orch:
-                # Patch model if overridden
-                if model != CLAUDE_MODEL:
-                    import config
-                    config.CLAUDE_MODEL = model
+            orch = S1Orchestrator(filing)
+            # Patch model if overridden
+            if model != CLAUDE_MODEL:
+                import config
+                config.CLAUDE_MODEL = model
+            with orch:
                 findings = orch.run()
-                findings["_model"] = model
-                iterations = orch.iterations
+            findings["_model"] = model
+            iterations = orch.iterations
+            tool_summary = orch.get_tool_call_summary()
             progress.update(
                 task,
                 description=f"Analysis complete ({iterations} agent iterations).",
@@ -178,6 +180,8 @@ def analyze(
         f"[green]✓[/] Analysis complete — "
         f"{iterations} agent iteration{'s' if iterations != 1 else ''}."
     )
+    if verbose:
+        console.print(f"  [dim]{tool_summary}[/]")
     console.print()
 
     # Step 3: Assemble and save report
