@@ -28,10 +28,12 @@ TOOL_SCHEMAS = [
                     "description": (
                         "Section to read. Valid values: "
                         "'summary', 'risk_factors', 'business', 'competition', "
-                        "'mda', 'financials', 'use_of_proceeds', 'dilution', "
-                        "'capitalization', 'principal_stockholders', "
-                        "'management', 'compensation', 'related_party', "
-                        "'underwriting', 'notes_to_financials', 'full'. "
+                        "'mda', 'financials', 'selected_financial_data', "
+                        "'use_of_proceeds', 'dilution', 'capitalization', "
+                        "'principal_stockholders', 'management', 'compensation', "
+                        "'related_party', 'underwriting', 'lock_up', "
+                        "'dividend_policy', 'corporate_governance', "
+                        "'notes_to_financials', 'full'. "
                         "Start with 'summary' and 'business' for orientation, "
                         "then drill into specific sections."
                     ),
@@ -89,6 +91,19 @@ TOOL_SCHEMAS = [
         "description": (
             "List all sections that were successfully parsed from this S-1. "
             "Call this first if you are unsure what sections are available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_ipo_price_info",
+        "description": (
+            "Extract IPO pricing information from the S-1: price range, shares offered, "
+            "over-allotment option, and implied market cap / enterprise value. "
+            "Call this once to anchor your valuation analysis."
         ),
         "input_schema": {
             "type": "object",
@@ -215,8 +230,9 @@ class ToolExecutor:
             )
         elif name == "list_s1_sections":
             return self._list_sections()
+        elif name == "get_ipo_price_info":
+            return self._get_ipo_price_info()
         elif name == "complete_analysis":
-            # Return sentinel — orchestrator handles this
             return "__COMPLETE__"
         else:
             return f"Unknown tool: {name}"
@@ -239,6 +255,45 @@ class ToolExecutor:
         text = self.parser.get_financial_table(table_type)
         return f"[Financial Table: {table_type}]\n\n{text}"
 
+    def _get_ipo_price_info(self) -> str:
+        """Extract IPO price range and share count from summary/cover page."""
+        import re
+
+        text = self.parser.get_section("summary")
+        if "not found" in text.lower():
+            text = self.parser.get_section("full")
+
+        price_range = re.findall(
+            r"\$\d+\.?\d*\s*(?:to|and|-)\s*\$\d+\.?\d*\s*per share",
+            text, re.IGNORECASE,
+        )
+        shares = re.findall(
+            r"[\d,]+(?:\.\d+)?\s*(?:million\s+)?shares?\s+(?:of\s+)?(?:class\s+\w+\s+)?common\s+stock",
+            text, re.IGNORECASE,
+        )
+        overallot = re.findall(
+            r"over.{0,10}allotment|green.{0,5}shoe",
+            text, re.IGNORECASE,
+        )
+        proceeds = re.findall(
+            r"net\s+proceeds.{0,120}(?:million|billion)",
+            text, re.IGNORECASE,
+        )
+
+        lines = ["[IPO Pricing Information from Cover Page / Summary]\n"]
+        lines.append(
+            f"Price range: {', '.join(price_range) if price_range else 'not yet set (TBD)'}"
+        )
+        lines.append(
+            f"Shares offered: {'; '.join(shares[:3]) if shares else 'see prospectus'}"
+        )
+        lines.append(
+            f"Over-allotment option: {'mentioned' if overallot else 'not explicitly mentioned'}"
+        )
+        if proceeds:
+            lines.append(f"Net proceeds mentions: {'; '.join(proceeds[:2])}")
+        return "\n".join(lines)
+
     def _search_web(self, query: str, max_results: int = 5) -> str:
         max_results = min(max(1, max_results), 10)
         try:
@@ -255,7 +310,10 @@ class ToolExecutor:
                 lines.append(f"{i}. **{title}**\n   {body}\n   {href}\n")
             return "\n".join(lines)
         except Exception as e:
-            return f"Web search failed: {e}. Proceed with information from the S-1 only."
+            return (
+                f"Web search failed: {e}. "
+                "Proceed with information from the S-1 only."
+            )
 
     def _list_sections(self) -> str:
         sections = self.parser.list_sections()
@@ -270,7 +328,9 @@ class ToolExecutor:
         for s in sections:
             lines.append(f"  - {s}")
         if not sections:
-            lines.append("  (no named sections parsed — try 'full' or 'mda')")
+            lines.append(
+                "  (no named sections parsed — try 'full' or 'mda')"
+            )
         return "\n".join(lines)
 
     def close(self):
