@@ -9,7 +9,7 @@ from typing import Optional
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from config import CACHE_DIR, EDGAR_CACHE, EDGAR_USER_AGENT, VERBOSE
+from config import EDGAR_USER_AGENT, VERBOSE
 
 EDGAR_BASE = "https://data.sec.gov"
 EDGAR_EFTS = "https://efts.sec.gov/LATEST/search-index"
@@ -24,6 +24,9 @@ HEADERS = {
 
 # EDGAR rate limit: ~10 req/s. We stay well below.
 REQUEST_DELAY = 0.15
+
+# Only look at S-1s filed from this date onwards
+MIN_FILING_DATE = "2024-01-01"
 
 
 class FilingNotFoundError(Exception):
@@ -63,23 +66,30 @@ class EDGARFetcher:
         if VERBOSE:
             print(f"[fetcher] Searching EDGAR for S-1: '{name}'")
 
+        # Try quoted search first (exact entity name match)
         params = {
             "q": f'"{name}"',
             "forms": "S-1",
             "dateRange": "custom",
-            "startdt": "2024-01-01",
+            "startdt": MIN_FILING_DATE,
         }
         hits = self._efts_search(params)
 
         if not hits:
-            # Retry without quotes — broader match
+            # Retry without quotes — broader keyword match
             params["q"] = name
             hits = self._efts_search(params)
 
         if not hits:
+            # Final attempt: search without date constraint
+            del params["dateRange"]
+            del params["startdt"]
+            hits = self._efts_search(params)
+
+        if not hits:
             raise FilingNotFoundError(
-                f"No S-1 filings found for '{name}' on EDGAR (2024–present). "
-                "The company may not have filed yet, or try a different name."
+                f"No S-1 filings found for '{name}' on EDGAR. "
+                "The company may not have filed yet, or try a different name variant."
             )
 
         source = hits[0]["_source"]
@@ -135,7 +145,8 @@ class EDGARFetcher:
                 )
 
         raise FilingNotFoundError(
-            f"No S-1 filing found for '{label}' (CIK {cik})."
+            f"No S-1 filing found for '{label}' (CIK {cik}). "
+            "The company may not have filed or may be private."
         )
 
     # ------------------------------------------------------------------
@@ -150,7 +161,6 @@ class EDGARFetcher:
         ciks = source.get("ciks", [""])
         cik = ciks[0].lstrip("0") if ciks else ""
 
-        # Discover the primary document via the filing index
         primary_doc = self._get_primary_document(cik, accession)
         return self._download_filing(cik, accession, date, company, primary_doc)
 
@@ -164,17 +174,22 @@ class EDGARFetcher:
             resp = self._get(index_url)
             index = resp.json()
             documents = index.get("documents", [])
+            # Prefer explicit S-1 type
             for doc in documents:
                 if doc.get("type") in ("S-1", "S-1/A"):
                     return doc["filename"]
-            # Fallback: first .htm
+            # Fallback: first .htm that isn't an exhibit
+            for doc in documents:
+                fn = doc.get("filename", "").lower()
+                if fn.endswith(".htm") and not fn.startswith("ex"):
+                    return doc["filename"]
+            # Last fallback: any .htm
             for doc in documents:
                 if doc.get("filename", "").lower().endswith(".htm"):
                     return doc["filename"]
         except Exception:
             pass
 
-        # Last resort: try accession-formatted filename
         return f"{accession}.htm"
 
     def _download_filing(
@@ -186,10 +201,11 @@ class EDGARFetcher:
         primary_doc: str,
     ) -> dict:
         """Download (or load from cache) the S-1 HTML document."""
+        import config as _cfg  # read at call time so monkeypatching works in tests
+
         acc_clean = accession.replace("-", "")
         doc_url = f"{EDGAR_ARCHIVES}/{cik}/{acc_clean}/{primary_doc}"
 
-        import config as _cfg  # read at call time so monkeypatching works in tests
         safe_name = re.sub(r"[^\w\-]", "_", company)
         cache_path = _cfg.CACHE_DIR / f"{safe_name}_{date}.html"
 
