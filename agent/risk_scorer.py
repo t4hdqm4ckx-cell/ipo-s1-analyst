@@ -21,14 +21,14 @@ RISK_SIGNALS: list[tuple[str, int, str]] = [
     (r"revenue\s+concentration|geographic\s+concentration", 5, "Revenue/geographic concentration"),
     (r"supplier\s+concentration|sole\s+source", 6, "Supplier or sole-source dependency"),
     # ── Governance ──────────────────────────────────────────────────────────
-    (r"dual[- ]class|class\s+[ab]\s+common", 6, "Dual-class share structure (reduced investor control)"),
+    (r"dual[- ]class|class\s+[ab]\s+common", 6, "Dual-class structure (reduced investor control)"),
     (r"no\s+voting\s+rights|limited\s+voting", 5, "Limited or no voting rights for new investors"),
     (r"anti[- ]takeover", 4, "Anti-takeover provisions"),
     # ── Regulatory / legal ──────────────────────────────────────────────────
     (r"export\s+control|itar|ear\s+compliance", 7, "Export control / ITAR regulatory exposure"),
     (r"government\s+contract|federal\s+contract", 4, "Government contract dependency"),
     (r"pending\s+litigation|material\s+litigation", 6, "Material pending litigation"),
-    (r"regulatory\s+approval\s+required|fda\s+approval", 7, "Regulatory approval required for core product"),
+    (r"regulatory\s+approval\s+required|fda\s+approval", 7, "Regulatory approval required"),
     (r"privacy\s+regulation|gdpr|ccpa", 3, "Data privacy regulatory exposure"),
     # ── Operational ─────────────────────────────────────────────────────────
     (r"key\s*[- ]?man|key\s+personnel", 5, "Key-person dependency risk"),

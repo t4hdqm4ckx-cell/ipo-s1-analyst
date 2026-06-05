@@ -6,6 +6,7 @@ import anthropic
 
 from agent.analyzer import build_context_summary
 from agent.parser import S1Parser
+from agent.risk_scorer import format_risk_score, score_risk
 from agent.tools import TOOL_SCHEMAS, ToolExecutor
 from agent.valuation import extract_revenue_growth, sector_comps_context
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_AGENT_ITERATIONS, MAX_TOKENS, VERBOSE
@@ -128,7 +129,7 @@ class S1Orchestrator:
         pre_scan = build_context_summary(self.parser, self.filing)
         comps = sector_comps_context()
 
-        # Attempt a quick revenue growth hint from MD&A
+        # Pre-scan: revenue growth hint
         mda_text = self.parser.get_section("mda")
         growth_hint = extract_revenue_growth(mda_text)
         growth_line = (
@@ -137,6 +138,16 @@ class S1Orchestrator:
             else ""
         )
 
+        # Pre-scan: automated risk score
+        risk_result = score_risk(self.parser)
+        risk_summary = format_risk_score(risk_result)
+        if VERBOSE:
+            print(
+                f"[orchestrator] Risk pre-scan: "
+                f"{risk_result['total_score']}/100 ({risk_result['rating']}) "
+                f"— {risk_result['flags_count']} signals"
+            )
+
         intro = (
             f"You are analyzing the S-1 filing for **{self.filing['company']}**.\n\n"
             f"Filing date: {self.filing['filing_date']}\n"
@@ -144,6 +155,8 @@ class S1Orchestrator:
             f"EDGAR URL: {self.filing['url']}\n"
             f"{growth_line}\n"
             f"{pre_scan}\n\n"
+            "---\n\n"
+            f"{risk_summary}\n\n"
             "---\n\n"
             f"{comps}\n\n"
             "---\n\n"

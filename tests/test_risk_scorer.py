@@ -60,7 +60,7 @@ def test_going_concern_adds_highest_weight():
     parser = S1Parser(HIGH_RISK_HTML, "GCCo")
     result = score_risk(parser)
     labels = [f[0] for f in result["flags_triggered"]]
-    assert any("going-concern" in l.lower() or "going concern" in l.lower() for l in labels)
+    assert any("going-concern" in lbl.lower() or "going concern" in lbl.lower() for lbl in labels)
 
 
 def test_format_risk_score_returns_string():
