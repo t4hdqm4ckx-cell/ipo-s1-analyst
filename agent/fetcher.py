@@ -189,10 +189,11 @@ class EDGARFetcher:
         acc_clean = accession.replace("-", "")
         doc_url = f"{EDGAR_ARCHIVES}/{cik}/{acc_clean}/{primary_doc}"
 
+        import config as _cfg  # read at call time so monkeypatching works in tests
         safe_name = re.sub(r"[^\w\-]", "_", company)
-        cache_path = CACHE_DIR / f"{safe_name}_{date}.html"
+        cache_path = _cfg.CACHE_DIR / f"{safe_name}_{date}.html"
 
-        if EDGAR_CACHE and cache_path.exists():
+        if _cfg.EDGAR_CACHE and cache_path.exists():
             if VERBOSE:
                 print(f"[fetcher] Loading from cache: {cache_path}")
             content = cache_path.read_text(encoding="utf-8", errors="replace")
@@ -201,7 +202,7 @@ class EDGARFetcher:
                 print(f"[fetcher] Downloading S-1: {doc_url}")
             resp = self._get(doc_url)
             content = resp.text
-            if EDGAR_CACHE:
+            if _cfg.EDGAR_CACHE:
                 cache_path.write_text(content, encoding="utf-8", errors="replace")
                 if VERBOSE:
                     print(f"[fetcher] Cached to: {cache_path}")

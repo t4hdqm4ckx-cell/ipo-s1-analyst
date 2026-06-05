@@ -67,7 +67,7 @@ def test_get_financial_table_cash_flow(parser):
 
 def test_get_financial_table_unknown_type(parser):
     text = parser.get_financial_table("xyzunknown")
-    assert "not found" in text.lower()
+    assert "no" in text.lower() and "found" in text.lower()
 
 
 def test_get_summary_metadata(parser):

@@ -116,11 +116,11 @@ def test_get_primary_document_fallback_to_htm(fetcher):
 # ------------------------------------------------------------------
 
 
-def test_download_filing_uses_cache(fetcher, tmp_path):
+def test_download_filing_uses_cache(fetcher, tmp_path, monkeypatch):
     import config
 
-    original = config.CACHE_DIR
-    config.CACHE_DIR = tmp_path
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(config, "EDGAR_CACHE", True)
 
     cache_file = tmp_path / "Acme_Corp_2025-03-01.html"
     cache_file.write_text("<html>cached content</html>", encoding="utf-8")
@@ -133,7 +133,6 @@ def test_download_filing_uses_cache(fetcher, tmp_path):
         primary_doc="s1.htm",
     )
     assert result["content"] == "<html>cached content</html>"
-    config.CACHE_DIR = original
 
 
 def test_filing_not_found_error_message():
