@@ -1,0 +1,180 @@
+"""Agentic orchestrator — drives the Claude tool-use loop for S-1 analysis."""
+
+from pathlib import Path
+from typing import Optional
+
+import anthropic
+
+from agent.parser import S1Parser
+from agent.tools import TOOL_SCHEMAS, ToolExecutor
+from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_AGENT_ITERATIONS, MAX_TOKENS, VERBOSE
+
+SYSTEM_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "system_prompt.md"
+
+
+class AnalysisError(Exception):
+    pass
+
+
+class S1Orchestrator:
+    """
+    Runs the agentic investigation loop:
+      1. Provides Claude with S-1 metadata + tools
+      2. Processes tool calls until Claude calls complete_analysis
+      3. Returns structured findings dict
+    """
+
+    def __init__(self, filing: dict):
+        self.filing = filing
+        self.parser = S1Parser(filing["content"], filing["company"])
+        self.executor = ToolExecutor(self.parser)
+        self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        self._system_prompt = self._build_system_prompt()
+        self.findings: Optional[dict] = None
+        self.iterations = 0
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def run(self) -> dict:
+        """Execute the full investigation loop and return findings dict."""
+        messages = self._build_initial_messages()
+
+        for i in range(MAX_AGENT_ITERATIONS):
+            self.iterations = i + 1
+            if VERBOSE:
+                print(f"\n[orchestrator] Iteration {self.iterations}")
+
+            response = self._call_claude(messages)
+
+            if VERBOSE:
+                self._log_response_summary(response)
+
+            # Collect any text the model emits (thinking aloud)
+            text_blocks = [
+                b for b in response.content if b.type == "text"
+            ]
+            tool_blocks = [
+                b for b in response.content if b.type == "tool_use"
+            ]
+
+            if response.stop_reason == "end_turn" or not tool_blocks:
+                # Model stopped without completing — force a conclusion
+                if not self.findings:
+                    raise AnalysisError(
+                        "Agent stopped without calling complete_analysis. "
+                        "Try increasing MAX_AGENT_ITERATIONS or check your API key."
+                    )
+                break
+
+            # Process tool calls
+            tool_results = []
+            complete_inputs = None
+
+            for block in tool_blocks:
+                result = self.executor.execute(block.name, block.input)
+                if result == "__COMPLETE__":
+                    complete_inputs = block.input
+                    self.findings = self.executor.get_findings(block.input)
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": "Analysis complete. Report will be generated.",
+                        }
+                    )
+                else:
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        }
+                    )
+
+            # Append assistant turn
+            messages.append({"role": "assistant", "content": response.content})
+
+            if self.findings:
+                # One final assistant acknowledgement then we exit
+                messages.append({"role": "user", "content": tool_results})
+                break
+
+            # Append tool results and continue
+            messages.append({"role": "user", "content": tool_results})
+
+        if not self.findings:
+            raise AnalysisError(
+                f"No findings after {self.iterations} iterations. "
+                "The agent did not reach a conclusion."
+            )
+
+        return self.findings
+
+    # ------------------------------------------------------------------
+    # Message building
+    # ------------------------------------------------------------------
+
+    def _build_initial_messages(self) -> list[dict]:
+        meta = self.parser.get_summary_metadata()
+        intro = (
+            f"You are analyzing the S-1 filing for **{self.filing['company']}**.\n\n"
+            f"Filing date: {self.filing['filing_date']}\n"
+            f"Document size: {meta['total_chars']:,} characters, {meta['table_count']} tables\n"
+            f"EDGAR URL: {self.filing['url']}\n\n"
+            "Begin your investigation. Start with `list_s1_sections` to orient yourself, "
+            "then systematically work through the filing. Be thorough — this is an "
+            "institutional-grade analysis. When you have enough information, call "
+            "`complete_analysis` with your full structured findings."
+        )
+        return [{"role": "user", "content": intro}]
+
+    def _build_system_prompt(self) -> str:
+        base = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
+        return base
+
+    # ------------------------------------------------------------------
+    # Claude API call with prompt caching
+    # ------------------------------------------------------------------
+
+    def _call_claude(self, messages: list[dict]) -> anthropic.types.Message:
+        """Call Claude with tool use enabled and prompt caching on system."""
+        system_with_cache = [
+            {
+                "type": "text",
+                "text": self._system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        return self.client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=MAX_TOKENS,
+            system=system_with_cache,
+            tools=TOOL_SCHEMAS,
+            messages=messages,
+        )
+
+    # ------------------------------------------------------------------
+    # Logging
+    # ------------------------------------------------------------------
+
+    def _log_response_summary(self, response: anthropic.types.Message):
+        text_count = sum(1 for b in response.content if b.type == "text")
+        tool_count = sum(1 for b in response.content if b.type == "tool_use")
+        tool_names = [b.name for b in response.content if b.type == "tool_use"]
+        usage = response.usage
+        print(
+            f"  stop_reason={response.stop_reason} | "
+            f"text_blocks={text_count} | tools={tool_count} {tool_names} | "
+            f"in={usage.input_tokens} out={usage.output_tokens}"
+        )
+
+    def close(self):
+        self.executor.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
