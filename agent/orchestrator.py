@@ -5,6 +5,7 @@ from typing import Optional
 
 import anthropic
 
+from agent.analyzer import build_context_summary
 from agent.parser import S1Parser
 from agent.tools import TOOL_SCHEMAS, ToolExecutor
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_AGENT_ITERATIONS, MAX_TOKENS, VERBOSE
@@ -118,11 +119,14 @@ class S1Orchestrator:
 
     def _build_initial_messages(self) -> list[dict]:
         meta = self.parser.get_summary_metadata()
+        pre_scan = build_context_summary(self.parser, self.filing)
         intro = (
             f"You are analyzing the S-1 filing for **{self.filing['company']}**.\n\n"
             f"Filing date: {self.filing['filing_date']}\n"
             f"Document size: {meta['total_chars']:,} characters, {meta['table_count']} tables\n"
             f"EDGAR URL: {self.filing['url']}\n\n"
+            f"{pre_scan}\n\n"
+            "---\n\n"
             "Begin your investigation. Start with `list_s1_sections` to orient yourself, "
             "then systematically work through the filing. Be thorough — this is an "
             "institutional-grade analysis. When you have enough information, call "
