@@ -57,14 +57,20 @@ reports/
 agent/
   fetcher.py      — SEC EDGAR search + S-1 download + local caching
   parser.py       — Section extraction, chunking, financial table parsing
-  tools.py        — Claude tool schemas and implementations
+  analyzer.py     — Pre-scan: extract financial signals before agent loop
+  valuation.py    — EV/Revenue, gross margin, Rule of 40, burn multiple, sector comps
+  risk_scorer.py  — 20-signal risk scanner → score + LOW/MEDIUM/HIGH/CRITICAL rating
+  tools.py        — Claude tool schemas: get_section, search_web, search_filing, IPO price, etc.
   orchestrator.py — Agentic loop: Claude iterates with tools until complete
-  reporter.py     — Markdown report assembly and file output
+  reporter.py     — Markdown report assembly with risk badge + file output
 prompts/
   system_prompt.md   — IB analyst persona and investigation instructions
   report_template.md — Output format specification
-cli.py            — Typer CLI entry point
+examples/
+  spacex_analysis.md — SpaceX-specific guidance and filing notes
+cli.py            — Typer CLI (analyze + recent subcommands)
 config.py         — Environment variable configuration
+tests/            — 69 unit + integration tests (zero network calls)
 ```
 
 ## Requirements
@@ -77,8 +83,11 @@ config.py         — Environment variable configuration
 
 - S-1 documents are cached locally in `.cache/edgar/` after first download
 - The agent uses **prompt caching** to minimize API costs on large filings
+- A **pre-scan** runs before the agent loop: financial signals, risk score (20 patterns), and sector comps are injected into the first message
 - Analysis depth scales with filing size — SpaceX-scale filings take ~3-5 minutes
+- The automated risk scorer flags 20 patterns (going concern, material weakness, dual-class, export controls, etc.) and outputs a 0–100 score + LOW/MEDIUM/HIGH/CRITICAL rating
 - This tool performs **read-only** operations — it never submits anything
+- **69 unit and integration tests**, all passing, zero network calls in the test suite
 
 ## Disclaimer
 
