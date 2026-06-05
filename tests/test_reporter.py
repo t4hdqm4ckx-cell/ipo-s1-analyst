@@ -1,7 +1,5 @@
 """Unit tests for the Markdown report assembler."""
 
-
-
 from agent.reporter import assemble_report, save_report
 
 SAMPLE_FINDINGS = {
@@ -115,6 +113,7 @@ def test_report_contains_disclaimer():
 
 def test_save_report_creates_file(tmp_path):
     import config
+
     original = config.REPORTS_DIR
     config.REPORTS_DIR = tmp_path
 

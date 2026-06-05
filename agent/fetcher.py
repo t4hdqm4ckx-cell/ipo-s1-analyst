@@ -2,7 +2,6 @@
 
 import re
 import time
-from typing import Optional
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -109,10 +108,7 @@ class EDGARFetcher:
 
         source = hits[0]["_source"]
         if VERBOSE:
-            print(
-                f"[fetcher] Found: {source.get('entity_name')} "
-                f"filed {source.get('file_date')}"
-            )
+            print(f"[fetcher] Found: {source.get('entity_name')} filed {source.get('file_date')}")
         return self._fetch_from_hit(source)
 
     # ------------------------------------------------------------------
@@ -128,9 +124,7 @@ class EDGARFetcher:
         for entry in data.values():
             if entry.get("ticker", "").upper() == ticker:
                 return str(entry["cik_str"]).zfill(10)
-        raise FilingNotFoundError(
-            f"Ticker '{ticker}' not found in EDGAR company tickers."
-        )
+        raise FilingNotFoundError(f"Ticker '{ticker}' not found in EDGAR company tickers.")
 
     # ------------------------------------------------------------------
     # Filing discovery via CIK
@@ -257,7 +251,7 @@ class EDGARFetcher:
         return data.get("hits", {}).get("hits", [])
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=8))
-    def _get(self, url: str, params: Optional[dict] = None) -> httpx.Response:
+    def _get(self, url: str, params: dict | None = None) -> httpx.Response:
         time.sleep(REQUEST_DELAY)
         resp = self.client.get(url, params=params)
         resp.raise_for_status()

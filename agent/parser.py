@@ -92,25 +92,44 @@ SECTION_PATTERNS: dict[str, list[str]] = {
 # Financial table keywords → used when extracting specific tables
 TABLE_KEYWORDS: dict[str, list[str]] = {
     "income_statement": [
-        "revenue", "net revenue", "total revenue",
-        "cost of revenue", "gross profit",
-        "operating income", "net income", "net loss",
-        "earnings per share", "loss per share",
+        "revenue",
+        "net revenue",
+        "total revenue",
+        "cost of revenue",
+        "gross profit",
+        "operating income",
+        "net income",
+        "net loss",
+        "earnings per share",
+        "loss per share",
     ],
     "balance_sheet": [
-        "total assets", "total liabilities",
-        "cash and cash equivalents", "stockholders",
-        "shareholders", "total equity",
+        "total assets",
+        "total liabilities",
+        "cash and cash equivalents",
+        "stockholders",
+        "shareholders",
+        "total equity",
     ],
     "cash_flow": [
-        "operating activities", "investing activities",
-        "financing activities", "net change in cash",
+        "operating activities",
+        "investing activities",
+        "financing activities",
+        "net change in cash",
         "capital expenditures",
     ],
     "key_metrics": [
-        "monthly active", "daily active", "users", "customers",
-        "gross merchandise", "gmv", "arr", "mrr",
-        "backlog", "contracted", "revenue per",
+        "monthly active",
+        "daily active",
+        "users",
+        "customers",
+        "gross merchandise",
+        "gmv",
+        "arr",
+        "mrr",
+        "backlog",
+        "contracted",
+        "revenue per",
     ],
 }
 
@@ -213,9 +232,7 @@ class S1Parser:
         Heading is None for non-header elements.
         """
         blocks: list[tuple[str | None, str]] = []
-        for el in self.soup.find_all(
-            ["h1", "h2", "h3", "h4", "p", "div", "table"]
-        ):
+        for el in self.soup.find_all(["h1", "h2", "h3", "h4", "p", "div", "table"]):
             if el.name in ("h1", "h2", "h3", "h4"):
                 text = el.get_text(" ", strip=True)
                 if text:

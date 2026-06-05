@@ -8,11 +8,7 @@ from config import REPORTS_DIR
 
 def _bullet_list(items: list[str], indent: int = 0) -> str:
     prefix = "  " * indent
-    return (
-        "\n".join(f"{prefix}- {item}" for item in items)
-        if items
-        else f"{prefix}- Not disclosed"
-    )
+    return "\n".join(f"{prefix}- {item}" for item in items) if items else f"{prefix}- Not disclosed"
 
 
 def _safe(findings: dict, key: str, default: str = "_Not disclosed_") -> str:
@@ -205,9 +201,7 @@ def assemble_report(findings: dict, filing: dict) -> str:
 def save_report(report: str, company: str) -> Path:
     """Write the report to REPORTS_DIR and return the path."""
     today = date.today().isoformat()
-    safe_name = "".join(
-        c if c.isalnum() or c in "-_" else "_" for c in company
-    )
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in company)
     filename = f"{safe_name}_{today}.md"
     path = REPORTS_DIR / filename
     path.write_text(report, encoding="utf-8")

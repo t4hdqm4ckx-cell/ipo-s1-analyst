@@ -225,9 +225,7 @@ class ToolExecutor:
         elif name == "get_financial_table":
             return self._get_financial_table(inputs["table_type"])
         elif name == "search_web":
-            return self._search_web(
-                inputs["query"], inputs.get("max_results", 5)
-            )
+            return self._search_web(inputs["query"], inputs.get("max_results", 5))
         elif name == "list_s1_sections":
             return self._list_sections()
         elif name == "get_ipo_price_info":
@@ -265,28 +263,30 @@ class ToolExecutor:
 
         price_range = re.findall(
             r"\$\d+\.?\d*\s*(?:to|and|-)\s*\$\d+\.?\d*\s*per share",
-            text, re.IGNORECASE,
+            text,
+            re.IGNORECASE,
         )
         shares = re.findall(
             r"[\d,]+(?:\.\d+)?\s*(?:million\s+)?shares?\s+(?:of\s+)?(?:class\s+\w+\s+)?common\s+stock",
-            text, re.IGNORECASE,
+            text,
+            re.IGNORECASE,
         )
         overallot = re.findall(
             r"over.{0,10}allotment|green.{0,5}shoe",
-            text, re.IGNORECASE,
+            text,
+            re.IGNORECASE,
         )
         proceeds = re.findall(
             r"net\s+proceeds.{0,120}(?:million|billion)",
-            text, re.IGNORECASE,
+            text,
+            re.IGNORECASE,
         )
 
         lines = ["[IPO Pricing Information from Cover Page / Summary]\n"]
         lines.append(
             f"Price range: {', '.join(price_range) if price_range else 'not yet set (TBD)'}"
         )
-        lines.append(
-            f"Shares offered: {'; '.join(shares[:3]) if shares else 'see prospectus'}"
-        )
+        lines.append(f"Shares offered: {'; '.join(shares[:3]) if shares else 'see prospectus'}")
         lines.append(
             f"Over-allotment option: {'mentioned' if overallot else 'not explicitly mentioned'}"
         )
@@ -310,27 +310,21 @@ class ToolExecutor:
                 lines.append(f"{i}. **{title}**\n   {body}\n   {href}\n")
             return "\n".join(lines)
         except Exception as e:
-            return (
-                f"Web search failed: {e}. "
-                "Proceed with information from the S-1 only."
-            )
+            return f"Web search failed: {e}. Proceed with information from the S-1 only."
 
     def _list_sections(self) -> str:
         sections = self.parser.list_sections()
         meta = self.parser.get_summary_metadata()
         lines = [
             f"[S-1 Sections for {meta['company']}]",
-            f"Document size: {meta['total_chars']:,} chars | "
-            f"{meta['table_count']} tables",
+            f"Document size: {meta['total_chars']:,} chars | {meta['table_count']} tables",
             "",
             "Available sections:",
         ]
         for s in sections:
             lines.append(f"  - {s}")
         if not sections:
-            lines.append(
-                "  (no named sections parsed — try 'full' or 'mda')"
-            )
+            lines.append("  (no named sections parsed — try 'full' or 'mda')")
         return "\n".join(lines)
 
     def close(self):

@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.rule import Rule
+from rich.table import Table
 
 from agent.fetcher import EDGARFetcher, FilingNotFoundError
 from agent.orchestrator import AnalysisError, S1Orchestrator
@@ -87,9 +88,11 @@ def analyze(
     # Override config with CLI flags
     if verbose:
         import config
+
         config.VERBOSE = True
     if output:
         import config
+
         config.REPORTS_DIR = output
         output.mkdir(parents=True, exist_ok=True)
 
@@ -138,6 +141,14 @@ def analyze(
 
     # Step 2: Run agentic analysis
     findings = None
+    tool_summary = ""
+    orch = S1Orchestrator(filing)
+    # Patch model if overridden via CLI
+    if model != CLAUDE_MODEL:
+        import config
+
+        config.CLAUDE_MODEL = model
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -145,15 +156,8 @@ def analyze(
         console=console,
         transient=not verbose,
     ) as progress:
-        task = progress.add_task(
-            "Running IB-grade due diligence analysis...", total=None
-        )
+        task = progress.add_task("Running IB-grade due diligence analysis...", total=None)
         try:
-            orch = S1Orchestrator(filing)
-            # Patch model if overridden
-            if model != CLAUDE_MODEL:
-                import config
-                config.CLAUDE_MODEL = model
             with orch:
                 findings = orch.run()
             findings["_model"] = model
@@ -170,6 +174,7 @@ def analyze(
             console.print(f"\n[bold red]Unexpected error:[/] {e}")
             if verbose:
                 import traceback
+
                 traceback.print_exc()
             raise typer.Exit(1)
 
@@ -177,7 +182,7 @@ def analyze(
         f"[green]✓[/] Analysis complete — "
         f"{iterations} agent iteration{'s' if iterations != 1 else ''}."
     )
-    if verbose:
+    if verbose and tool_summary:
         console.print(f"  [dim]{tool_summary}[/]")
     console.print()
 
@@ -191,12 +196,8 @@ def analyze(
 
     console.print(Rule(style="dim"))
     console.print()
-    console.print(
-        f"  Recommendation: [{rec_color} bold]{rec}[/]"
-    )
-    console.print(
-        f"  Report saved:   [cyan]{report_path}[/]"
-    )
+    console.print(f"  Recommendation: [{rec_color} bold]{rec}[/]")
+    console.print(f"  Report saved:   [cyan]{report_path}[/]")
     console.print()
 
     # Print executive summary preview
@@ -205,6 +206,40 @@ def analyze(
         preview = exec_summary[:600] + ("..." if len(exec_summary) > 600 else "")
         console.print(Panel(preview, title="Executive Summary Preview", border_style="dim"))
 
+    console.print()
+
+
+@app.command(name="recent")
+def list_recent(
+    limit: int = typer.Option(
+        10,
+        "--limit",
+        "-n",
+        help="Number of recent S-1 filings to show.",
+    ),
+):
+    """List the most recent S-1 filings on SEC EDGAR."""
+    console.print()
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("Fetching recent S-1 filings from EDGAR..."),
+        console=console,
+        transient=True,
+    ) as _:
+        with EDGARFetcher() as fetcher:
+            filings = fetcher.list_recent_s1s(limit=limit)
+
+    table = Table(title=f"Recent S-1 Filings (last {len(filings)})", border_style="cyan")
+    table.add_column("Company", style="bold")
+    table.add_column("Filed", style="dim")
+    table.add_column("Accession")
+
+    for f in filings:
+        table.add_row(f["company"], f["date"], f["accession"])
+
+    console.print(table)
+    console.print()
+    console.print("[dim]Run: s1-analyst --company <name> to analyze any of these.[/]")
     console.print()
 
 
