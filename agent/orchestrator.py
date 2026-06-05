@@ -35,6 +35,7 @@ class S1Orchestrator:
         self.findings: dict | None = None
         self.iterations = 0
         self.tool_call_log: list[dict] = []
+        self._risk_result: dict = {"total_score": 0, "rating": "LOW"}
 
     # ------------------------------------------------------------------
     # Public API
@@ -76,6 +77,9 @@ class S1Orchestrator:
 
                 if result == "__COMPLETE__":
                     self.findings = self.executor.get_findings(block.input)
+                    # Attach pre-computed risk score so reporter can display it
+                    self.findings["_risk_score"] = self._risk_result["total_score"]
+                    self.findings["_risk_rating"] = self._risk_result["rating"]
                     tool_results.append(
                         {
                             "type": "tool_result",
@@ -138,8 +142,9 @@ class S1Orchestrator:
             else ""
         )
 
-        # Pre-scan: automated risk score
-        risk_result = score_risk(self.parser)
+        # Pre-scan: automated risk score (stored on self for use in run())
+        self._risk_result = score_risk(self.parser)
+        risk_result = self._risk_result
         risk_summary = format_risk_score(risk_result)
         if VERBOSE:
             print(
