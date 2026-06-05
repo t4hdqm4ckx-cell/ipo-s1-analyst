@@ -74,6 +74,20 @@ SECTION_PATTERNS: dict[str, list[str]] = {
     "notes_to_financials": [
         r"notes\s+to\s+(consolidated\s+)?financial",
     ],
+    "selected_financial_data": [
+        r"selected\s+(consolidated\s+)?financial\s+(data|information)",
+    ],
+    "dividend_policy": [
+        r"dividend\s+policy",
+    ],
+    "lock_up": [
+        r"lock.{0,5}up\s+agreements?",
+        r"transfer\s+restrictions",
+    ],
+    "corporate_governance": [
+        r"corporate\s+governance",
+        r"board\s+of\s+directors",
+    ],
 }
 
 # Financial table keywords → used when extracting specific tables
