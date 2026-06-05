@@ -7,6 +7,7 @@ import anthropic
 from agent.analyzer import build_context_summary
 from agent.parser import S1Parser
 from agent.tools import TOOL_SCHEMAS, ToolExecutor
+from agent.valuation import extract_revenue_growth, sector_comps_context
 from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, MAX_AGENT_ITERATIONS, MAX_TOKENS, VERBOSE
 
 SYSTEM_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "system_prompt.md"
@@ -125,12 +126,26 @@ class S1Orchestrator:
     def _build_initial_messages(self) -> list[dict]:
         meta = self.parser.get_summary_metadata()
         pre_scan = build_context_summary(self.parser, self.filing)
+        comps = sector_comps_context()
+
+        # Attempt a quick revenue growth hint from MD&A
+        mda_text = self.parser.get_section("mda")
+        growth_hint = extract_revenue_growth(mda_text)
+        growth_line = (
+            f"Revenue growth detected in MD&A: {growth_hint}% YoY\n"
+            if growth_hint
+            else ""
+        )
+
         intro = (
             f"You are analyzing the S-1 filing for **{self.filing['company']}**.\n\n"
             f"Filing date: {self.filing['filing_date']}\n"
             f"Document size: {meta['total_chars']:,} characters, {meta['table_count']} tables\n"
-            f"EDGAR URL: {self.filing['url']}\n\n"
+            f"EDGAR URL: {self.filing['url']}\n"
+            f"{growth_line}\n"
             f"{pre_scan}\n\n"
+            "---\n\n"
+            f"{comps}\n\n"
             "---\n\n"
             "Begin your investigation. Start with `list_s1_sections` to orient yourself, "
             "then systematically work through the filing. Be thorough — this is an "
