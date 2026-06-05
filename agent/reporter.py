@@ -51,6 +51,14 @@ def _recommendation_badge(rec: str) -> str:
     return badge_map.get(rec, f"**{rec}**")
 
 
+def _risk_score_badge(score: int | None, rating: str | None) -> str:
+    if score is None or rating is None:
+        return ""
+    color_map = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
+    icon = color_map.get(rating, "⚪")
+    return f"{icon} Risk Score: **{score}/100** ({rating})"
+
+
 def assemble_report(findings: dict, filing: dict) -> str:
     """Build the full Markdown report from findings and filing metadata."""
     today = date.today().isoformat()
@@ -67,11 +75,17 @@ def assemble_report(findings: dict, filing: dict) -> str:
     risks_to_thesis = findings.get("key_risks_to_thesis", [])
     model = findings.get("_model", "claude-sonnet-4-6")
 
+    # Optional risk score badge
+    risk_score = findings.get("_risk_score")
+    risk_rating = findings.get("_risk_rating")
+    risk_badge = _risk_score_badge(risk_score, risk_rating)
+    risk_badge_line = f"**Automated Risk:** {risk_badge}\n" if risk_badge else ""
+
     report = f"""# IPO S-1 Analysis: {company}
 
 **Filed:** {filed} | **Analyst:** S-1 Analyst Agent | **Date:** {today}
 **Recommendation:** {badge} — {rec_oneliner}
-
+{risk_badge_line}
 ---
 
 ## Executive Summary
@@ -223,4 +237,6 @@ def report_to_dict(findings: dict, filing: dict) -> dict:
         "base_case": findings.get("base_case"),
         "bear_case": findings.get("bear_case"),
         "recommendation_rationale": findings.get("recommendation_rationale"),
+        "risk_score": findings.get("_risk_score"),
+        "risk_rating": findings.get("_risk_rating"),
     }
