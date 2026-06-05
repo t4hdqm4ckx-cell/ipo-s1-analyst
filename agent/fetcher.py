@@ -2,6 +2,7 @@
 
 import re
 import time
+from typing import Optional
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -22,7 +23,7 @@ HEADERS = {
 # EDGAR rate limit: ~10 req/s. We stay well below.
 REQUEST_DELAY = 0.15
 
-# Only look at S-1s filed from this date onwards
+# Only look at S-1s filed from this date onwards by default
 MIN_FILING_DATE = "2024-01-01"
 
 
@@ -50,6 +51,23 @@ class EDGARFetcher:
             return self._find_by_ticker(query.upper())
         return self._find_by_name(query)
 
+    def list_recent_s1s(self, limit: int = 10) -> list[dict]:
+        """Return the most recent S-1 filings across all companies (useful for discovery)."""
+        params = {
+            "forms": "S-1",
+            "dateRange": "custom",
+            "startdt": MIN_FILING_DATE,
+        }
+        hits = self._efts_search(params)[:limit]
+        return [
+            {
+                "company": h["_source"].get("entity_name", "Unknown"),
+                "date": h["_source"].get("file_date", ""),
+                "accession": h["_source"].get("accession_no", ""),
+            }
+            for h in hits
+        ]
+
     # ------------------------------------------------------------------
     # Search paths
     # ------------------------------------------------------------------
@@ -63,7 +81,7 @@ class EDGARFetcher:
         if VERBOSE:
             print(f"[fetcher] Searching EDGAR for S-1: '{name}'")
 
-        # Try quoted search first (exact entity name match)
+        # Pass 1: quoted exact name + date range
         params = {
             "q": f'"{name}"',
             "forms": "S-1",
@@ -73,12 +91,12 @@ class EDGARFetcher:
         hits = self._efts_search(params)
 
         if not hits:
-            # Retry without quotes — broader keyword match
+            # Pass 2: unquoted keyword search + date range
             params["q"] = name
             hits = self._efts_search(params)
 
         if not hits:
-            # Final attempt: search without date constraint
+            # Pass 3: remove date constraint entirely
             del params["dateRange"]
             del params["startdt"]
             hits = self._efts_search(params)
@@ -164,9 +182,7 @@ class EDGARFetcher:
     def _get_primary_document(self, cik: str, accession: str) -> str:
         """Fetch the filing index and return the primary document filename."""
         acc_clean = accession.replace("-", "")
-        index_url = (
-            f"{EDGAR_ARCHIVES}/{cik}/{acc_clean}/{accession}-index.json"
-        )
+        index_url = f"{EDGAR_ARCHIVES}/{cik}/{acc_clean}/{accession}-index.json"
         try:
             resp = self._get(index_url)
             index = resp.json()
@@ -175,7 +191,7 @@ class EDGARFetcher:
             for doc in documents:
                 if doc.get("type") in ("S-1", "S-1/A"):
                     return doc["filename"]
-            # Fallback: first .htm that isn't an exhibit
+            # Avoid exhibits (ex-*, exhibit*)
             for doc in documents:
                 fn = doc.get("filename", "").lower()
                 if fn.endswith(".htm") and not fn.startswith("ex"):
@@ -241,7 +257,7 @@ class EDGARFetcher:
         return data.get("hits", {}).get("hits", [])
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=8))
-    def _get(self, url: str, params: dict | None = None) -> httpx.Response:
+    def _get(self, url: str, params: Optional[dict] = None) -> httpx.Response:
         time.sleep(REQUEST_DELAY)
         resp = self.client.get(url, params=params)
         resp.raise_for_status()
